@@ -144,7 +144,11 @@ static void importFilesToPlaylistAsync(t_size playlistIndex, t_size insertAt, NS
     auto notify = fb2k::service_new<SimPlaylistImportNotify>(playlistIndex, insertAt);
 
     for (NSURL* url in sortedURLs) {
-        if (url.isFileURL) {
+        // Scheme-less absolute paths (e.g. "/Volumes/External%20Drive/Music/..." from the native
+        // library tree's pasteboard) are local files: isFileURL is NO for them and
+        // absoluteString keeps the percent-encoding, which fb2k cannot open.
+        BOOL schemelessPath = (url.scheme.length == 0 && [url.path hasPrefix:@"/"]);
+        if (url.isFileURL || schemelessPath) {
             // File URL - use path
             NSString* path = url.path;
             if (path && path.length > 0) {

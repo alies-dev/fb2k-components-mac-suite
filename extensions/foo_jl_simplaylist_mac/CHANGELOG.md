@@ -5,6 +5,7 @@ All notable changes to SimPlaylist will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Library drops failed with "Access denied"**: Tracks dragged from the library tree whose path contains a space (e.g. `/Volumes/External Drive/Music/...`) were passed to foobar2000 percent-encoded, because the pasteboard URL had no `file://` scheme and was treated as a web URL.
 - **Home key did nothing useful in grouped playlists**: Home jumped to an arbitrary point mid-list instead of the first track. The focus-movement API works in display rows, but Home computed its distance from the playlist index, which ignores every group header, subgroup header and padding row above the current track. End was wrong in the same way and only appeared to work because an over-large jump clamps to the end.
 - **Album art could pin the CPU indefinitely**: an image too large to cache was neither stored nor remembered as unusable, so every redraw decoded it again on up to four background threads for as long as its album was on screen.
 - **Invalid grouping patterns previewed as a filename**: the preferences preview reported a plausible-looking wrong answer instead of flagging the pattern as invalid.

@@ -20,6 +20,41 @@
 NSString *const SimPlaylistSettingsChangedNotification = @"SimPlaylistSettingsChanged";
 NSPasteboardType const SimPlaylistPasteboardType = @"com.foobar2000.simplaylist.rows";
 NSPasteboardType const TidalBrowserPasteboardType = @"com.foobar2000.tidal.browser.rows";
+// foobar2000's own drag types (album list, other native panels), binary plists
+// with native paths (file://, mac-volume://...): a single [path, subsong] pair for
+// one track, an array of such pairs for several. Multi-track drags from the album
+// list carry nothing else.
+static NSPasteboardType const Fb2kLocationPasteboardType = @"com.foobar2000.location";
+static NSPasteboardType const Fb2kLocationsPasteboardType = @"com.foobar2000.locations";
+
+// Appends one [path, subsong] pair; entries of any other shape are skipped.
+static void appendFb2kLocation(id entry, NSMutableArray<NSString *> *paths, NSMutableArray<NSNumber *> *subsongs) {
+    if (![entry isKindOfClass:[NSArray class]] || [(NSArray *)entry count] < 2) return;
+    id path = ((NSArray *)entry)[0];
+    id subsong = ((NSArray *)entry)[1];
+    if (![path isKindOfClass:[NSString class]] || [(NSString *)path length] == 0 ||
+        ![subsong isKindOfClass:[NSNumber class]]) return;
+    [paths addObject:path];
+    [subsongs addObject:subsong];
+}
+
+// Reads whichever fb2k location type the pasteboard carries. NO if neither is usable.
+static BOOL readFb2kLocations(NSPasteboard *pb, NSMutableArray<NSString *> *paths, NSMutableArray<NSNumber *> *subsongs) {
+    BOOL multiple = [pb.types containsObject:Fb2kLocationsPasteboardType];
+    NSPasteboardType type = multiple ? Fb2kLocationsPasteboardType : Fb2kLocationPasteboardType;
+    NSData *data = [pb dataForType:type];
+    id plist = data ? [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable
+                                                                 format:nil error:nil] : nil;
+    if (multiple) {
+        if (![plist isKindOfClass:[NSArray class]]) return NO;
+        for (id entry in (NSArray *)plist) {
+            appendFb2kLocation(entry, paths, subsongs);
+        }
+    } else {
+        appendFb2kLocation(plist, paths, subsongs);
+    }
+    return paths.count > 0;
+}
 
 // Decoration RGBA (0xRRGGBBAA from jl_decorator_api) to NSColor; 0 = nil.
 static NSColor *colorFromRGBA(uint32_t rgba) {
@@ -220,6 +255,8 @@ static NSString *formatGroupDuration(double seconds) {
     [self registerForDraggedTypes:@[
         SimPlaylistPasteboardType,
         TidalBrowserPasteboardType,
+        Fb2kLocationPasteboardType,
+        Fb2kLocationsPasteboardType,
         NSPasteboardTypeFileURL,
         NSPasteboardTypeURL,    // Web URLs (e.g., from Cloud Browser)
         NSPasteboardTypeString  // Plain text URLs as fallback
@@ -1895,7 +1932,9 @@ static BOOL isSupportedURLString(NSString *str) {
         // Option key = copy, otherwise move
         BOOL optionKeyHeld = ([NSEvent modifierFlags] & NSEventModifierFlagOption) != 0;
         return optionKeyHeld ? NSDragOperationCopy : NSDragOperationMove;
-    } else if ([pb.types containsObject:NSPasteboardTypeFileURL]) {
+    } else if ([pb.types containsObject:Fb2kLocationsPasteboardType] ||
+               [pb.types containsObject:Fb2kLocationPasteboardType] ||
+               [pb.types containsObject:NSPasteboardTypeFileURL]) {
         return NSDragOperationCopy;
     } else if ([pb.types containsObject:NSPasteboardTypeURL]) {
         // Web URLs (e.g., from Cloud Browser)
@@ -2169,6 +2208,25 @@ static NSDictionary *validatedDragData(id unarchived) {
             return YES;
         }
         // Fall through to other handlers if Tidal data couldn't be read
+    }
+
+    // foobar2000 native locations (album list). Preferred over the file URL
+    // fallback: the paths are already in fb2k form, volume-relative included.
+    if ([pb.types containsObject:Fb2kLocationsPasteboardType] ||
+        [pb.types containsObject:Fb2kLocationPasteboardType]) {
+        NSMutableArray<NSString *> *paths = [NSMutableArray array];
+        NSMutableArray<NSNumber *> *subsongs = [NSMutableArray array];
+        if (readFb2kLocations(pb, paths, subsongs)) {
+            FB2K_console_formatter() << "[SimPlaylist] fb2k locations drop: " << paths.count << " tracks";
+            if ([_delegate respondsToSelector:@selector(playlistView:didReceiveDroppedLocations:subsongs:atRow:)]) {
+                [_delegate playlistView:self didReceiveDroppedLocations:paths subsongs:subsongs atRow:_dropTargetRow];
+            }
+            _dropTargetRow = -1;
+            [self setNeedsDisplay:YES];
+            return YES;
+        }
+        FB2K_console_formatter() << "[SimPlaylist] Ignoring fb2k locations drop with unexpected shape";
+        // Fall through to the file URL handler if one is present
     }
 
     // File drop from Finder or media library

@@ -22,21 +22,20 @@ NSPasteboardType const SimPlaylistPasteboardType = @"com.foobar2000.simplaylist.
 NSPasteboardType const TidalBrowserPasteboardType = @"com.foobar2000.tidal.browser.rows";
 // foobar2000's own drag types (album list, other native panels), binary plists
 // with native paths (file://, mac-volume://...): a single [path, subsong] pair for
-// one track, an array of such pairs for several. The album list puts only these
-// on the pasteboard.
+// one track, an array of such pairs for several. Multi-track drags from the album
+// list carry nothing else.
 static NSPasteboardType const Fb2kLocationPasteboardType = @"com.foobar2000.location";
 static NSPasteboardType const Fb2kLocationsPasteboardType = @"com.foobar2000.locations";
 
-// Appends one [path, subsong] pair; returns NO if the entry has another shape.
-static BOOL appendFb2kLocation(id entry, NSMutableArray<NSString *> *paths, NSMutableArray<NSNumber *> *subsongs) {
-    if (![entry isKindOfClass:[NSArray class]] || [(NSArray *)entry count] < 2) return NO;
+// Appends one [path, subsong] pair; entries of any other shape are skipped.
+static void appendFb2kLocation(id entry, NSMutableArray<NSString *> *paths, NSMutableArray<NSNumber *> *subsongs) {
+    if (![entry isKindOfClass:[NSArray class]] || [(NSArray *)entry count] < 2) return;
     id path = ((NSArray *)entry)[0];
     id subsong = ((NSArray *)entry)[1];
     if (![path isKindOfClass:[NSString class]] || [(NSString *)path length] == 0 ||
-        ![subsong isKindOfClass:[NSNumber class]]) return NO;
+        ![subsong isKindOfClass:[NSNumber class]]) return;
     [paths addObject:path];
     [subsongs addObject:subsong];
-    return YES;
 }
 
 // Reads whichever fb2k location type the pasteboard carries. NO if neither is usable.

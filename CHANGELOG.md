@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [Unreleased]
 
 #### Fixed
-- Dragging more than one track from the album list into the playlist did nothing
+- Dragging tracks or folders from the album list into the playlist did nothing
 - Tracks dragged from the library tree failed with "Access denied" when their path contained a space (scheme-less file URL was imported percent-encoded)
 - Home key jumped to an arbitrary point mid-list instead of the first track in grouped playlists (End was wrong the same way but masked by clamping)
 - An album cover too large to cache was re-decoded on every redraw, on up to four threads, for as long as it was on screen

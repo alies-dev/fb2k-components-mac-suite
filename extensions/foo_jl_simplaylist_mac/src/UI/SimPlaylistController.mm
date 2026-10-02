@@ -3256,6 +3256,8 @@ static NSInteger insertionIndexForDropRow(SimPlaylistView *view, NSInteger row) 
     t_size first = pm->playlist_insert_items(activePlaylist, insertAt, handles, pfc::bit_array_val(true));
     if (first != SIZE_MAX) {
         pm->playlist_set_focus_item(activePlaylist, first);
+    } else {
+        FB2K_console_formatter() << "[SimPlaylist] Inserting " << handles.get_count() << " dropped tracks failed";
     }
 }
 
